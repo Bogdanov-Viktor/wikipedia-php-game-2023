@@ -7,29 +7,6 @@
   <title>Игра</title>
 
   <style>
-    /* body {
-      padding: 0;
-      margin: 0;
-    } */
-    /* .rect {
-		width:200px;
-		height:200px;
-		border: 2px solid black;
-		
-		<   ?php
-			if(isset($_REQUEST['color'])){
-				if($_REQUEST['color']==='g'){
-					echo "background-color:green;";
-				}
-				if($_REQUEST['color']==='r'){
-					echo "background-color:red;";
-				}
-			}
-				
-		?>
-
-	} */
-
     .table{
         border: 1px solid #eee;
         table-layout: fixed;
@@ -60,16 +37,25 @@
 
     <h2>Игра со страницами Википедии</h2>
     <p>Введите количество игроков:</p>
-    <p><input id="playersQty" type="text"/></p>
+    <p><input id="playersQtyInput" type="text"/></p>
     <p><button id="nextButton" onclick="playersQtyEnterd()">Далее</button></p>
-
+        
     <script>
         const GAME_URL = "/api/wiki_game.php"
+        let wikiHostUrl = ""
+        let pathStart = ""
+        let pathFinish = ""
+        let pathNow = ""
+        let linksFromPage = []
+        let resultsTable = []
+
         let playersQty = 0;
         let playerNow = 1;
 
         let playerStep = 1;
-        let playerStepsQty = 3;
+        // let playerStepsQty = 3;
+
+        // getResultsFromServ()
         
         function deleteNextButton(){
             if (document.getElementById("nextButton") !== null) {
@@ -78,173 +64,206 @@
         }
 
         function playersQtyEnterd(){
-            let async = true
-            let xhr = new XMLHttpRequest()
-            xhr.open("POST", `${GAME_URL}/playersQty`, [async])
-            xhr.send()
-            xhr.onload = function() {
-                alert(`Загружено: ${xhr.status} ${xhr.response}`);
-                // JSON.stringify
-                playersQty = JSON.parse(xhr.response).qty
-                showStartFinish()
-                
+            let qtyInput = document.getElementById("playersQtyInput")
+            let qtyEntered = qtyInput.value
+            // console.log(qty)
+            // console.log(parseInt(qty))
+            if(!isNaN(parseInt(qtyEntered)))
+            {
+                qtyEntered=parseInt(qtyEntered);
+
+                let async = true
+                let xhr = new XMLHttpRequest()
+                xhr.open("POST", `${GAME_URL}/playersQty`, [async])
+                xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+
+                let body = JSON.stringify({
+                    'qty':qtyEntered
+                })
+                xhr.send(body)
+                xhr.onload = function() {
+                    // console.log(`Загружено: ${xhr.status} ${xhr.response}`);
+                    // //decodeURIComponent(escape(xhr.response))
+                    // //JSON.stringify
+                    let parse = JSON.parse(xhr.response)
+                    // console.log(parse)
+                    if(parse.status==true){
+                        playersQty = qtyEntered
+                        wikiHostUrl = parse.hostUrl
+                        pathStart = parse.pathStart
+                        pathFinish = parse.pathFinish
+                        pathNow = pathStart
+
+                        qtyInput.setAttribute('placeholder', playersQty)
+                        qtyInput.setAttribute('disabled', true)
+
+                        showStartFinish()
+                    }
+                }
             }
         }
-        // import {doPlayerStep}
 
         function showStartFinish(){
             deleteNextButton()
             document.body.innerHTML += `
                     <p><b>Случайным образом определены страницы из википедии</b></p>
-                    <p>Стартовая: ...</p>
-                    <p>Финишная: ...</p>
+                    <p>Стартовая: <a href ="${wikiHostUrl+pathStart}">${wikiHostUrl+pathStart}</a></p>
+                    <p>Финишная: <a href ="${wikiHostUrl+pathFinish}">${wikiHostUrl+pathFinish}</a></p>
                     <p><i>Цель игры быстрее достигнуть финиша</i></p>
                 `
-            doPlayerStep()
+            doPlayerStepIfOk()
         }
-        function doPlayerStep(){
+        
+        function getLinksFromPage(){
+            let async = true
+            let xhr = new XMLHttpRequest()
+            xhr.open("GET", `${GAME_URL}/path.now.links`, [async])
+            xhr.send()
+            wait = true;
+            xhr.onload = function() {
+                //console.log(`Загружено: ${xhr.status} ${xhr.response}`)//
+                let parse = JSON.parse(xhr.response)
+                //console.log(parse)//
+                linksFromPage = parse.paths
+
+                showPlayerStepVariants()
+            }
+        }
+        function doPlayerStepIfOk(){
             deleteNextButton()
             if (playerNow <= playersQty){
-                if (playerStep <= playerStepsQty){
-                    if (playerStep == 1){
-                        document.body.innerHTML += `
-                            <br/>
-                            <p><b> ----- Ходит Игрок ${playerNow} -----</b></p>
-                            <p>Вы на стартовой странице</p>
-                        `
-                    }
-                    else{
-                        document.body.innerHTML += `
-                            <p>Вы на странице: ...</p>
-                        `
-                    }
-                    document.body.innerHTML += `
-                        <p>Выбирите, куда перейти дальше</p>
-                        <p>1 - ...</p>
-                        <p>2 - ...</p>
-                        <p><input type="text"/></p>
-                        <p><button id="nextButton" onclick="doPlayerStep()">Далее</button></p>
-                    `
-                    
-                    playerStep += 1
+                // if (playerStep <= playerStepsQty){
+                if (pathFinish != pathNow){
+                    getLinksFromPage()
                 }
                 else{
-                    if (playerStepsQty != 0){
+                    // if (playerStepsQty != 0){
                         document.body.innerHTML += `
                             <p><b>Вы достигли финиша за столько шагов:</b> ${playerStep - 1}</p>
                         `
-                    }
+                    // }
                     playerStep = 1
                     playerNow += 1
-                    doPlayerStep()
+                    pathNow = pathStart
+                    doPlayerStepIfOk()
                 }
             }
             else{
+                getResultsFromServ()
+            }
+        }
+
+        function showPlayerStepVariants(){
+            if (playerStep == 1){
+                document.body.innerHTML += `
+                    <br/>
+                    <p><b> ----- Ходит Игрок ${playerNow} -----</b></p>
+                    <p>Вы на стартовой странице</p>
+                `
+            }
+            else{
+                document.body.innerHTML += `
+                    <p>Вы на странице: <a href ="${wikiHostUrl+pathNow}">${wikiHostUrl+pathNow}</a></p>
+                `
+            }
+            document.body.innerHTML += `
+                <p>Выбирите, куда перейти дальше</p>
+                `
+            for (let i = 1; i < linksFromPage.length; i++) {
+                document.body.innerHTML += `
+                    <p>${i} - <a href ="${wikiHostUrl+linksFromPage[i]}">${linksFromPage[i]}</a></p>
+                    `
+            }
+            document.body.innerHTML += `
+                <p><input id="playerStep${playerStep}Input"type="text"/></p>
+                <p><button id="nextButton" onclick="goToNewPath()">Далее</button></p>
+            `
+            
+        }
+
+        function goToNewPath(){
+            let qtyInput = document.getElementById(`playerStep${playerStep}Input`)
+            let qtyEntered = qtyInput.value
+            // console.log(qty)
+            // console.log(parseInt(qty))
+            if(!isNaN(parseInt(qtyEntered)))
+            {
+                qtyEntered=parseInt(qtyEntered);
+
+                let async = true
+                let xhr = new XMLHttpRequest()
+                xhr.open("POST", `${GAME_URL}/path.now`, [async])
+                xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+
+                let body = JSON.stringify({
+                    'id':qtyEntered
+                })
+                xhr.send(body)
+                xhr.onload = function() {
+                    // console.log(`Загружено: ${xhr.status} ${xhr.response}`);
+                    // //decodeURIComponent(escape(xhr.response))
+                    // //JSON.stringify
+                    let parse = JSON.parse(xhr.response)
+                    // console.log(parse)
+                    if(parse.status==true){
+                        pathNow = parse.pathNew
+
+                        qtyInput.setAttribute('placeholder', playersQty)
+                        qtyInput.setAttribute('disabled', true)
+
+                        playerStep += 1
+                        doPlayerStepIfOk()
+                    }
+                }
+            }
+            // getResultsFromServ()
+        }
+
+        function getResultsFromServ(){
+            let async = true
+            let xhr = new XMLHttpRequest()
+            xhr.open("GET", `${GAME_URL}/resultsTable`, [async])
+            xhr.send()
+            wait = true;
+            xhr.onload = function() {
+                //console.log(`Загружено: ${xhr.status} ${xhr.response}`)//
+                let parse = JSON.parse(xhr.response)
+                //console.log(parse)//
+                resultsTable = parse.resultsTable
+
                 showResultsTable()
             }
         }
+
+        let newTableId=1;
         function showResultsTable(){
             document.body.innerHTML += `
                 <br/>
                 <p><b>Таблица результатов</b></p>
                 <table class="table">
-                    <tr>
-                        <th>Место</th>
-                        <th>Имя</th>
-                        <th>Число переходов</th>
-                    </tr>
-                    <tr>
-                        <td>1</td>
-                        <td>Игрок 1</td>
-                        <td>3</td>
-                    </tr>
-                    <tr>
-                        <td>2</td>
-                        <td>Игрок 2</td>
-                        <td>5</td>
-                    </tr>
+                    <tbody id="tableBody${newTableId}">
+                        <tr>
+                            <th>Место</th>
+                            <th>Имя</th>
+                            <th>Число переходов</th>
+                        </tr>
+                    <tbody>
                 </table>
-                <p>Кратчайший путь (оптимальное число переходов): <b>2</b></p>
+                `
+            for (let i in resultsTable){
+                document.getElementById(`tableBody${newTableId}`).innerHTML += `
+                    <tr>
+                        <td>${i}</td>
+                        <td>Игрок ${resultsTable[i].user_id}</td>
+                        <td>${resultsTable[i].user_steps_qty}</td>
+                    </tr>
+                    `
+            }
+            document.body.innerHTML += `
+                <p>Кратчайший путь (оптимальное число переходов): <b>1</b></p>
             `
+            newTableId++
         }
     </script>
-
-
-
-
-
-
-
-
-
-    <!-- <input name="U" type="checkbox" value="1" checked="checked"/>Ужасы<br/>
-			<input name="U" type="checkbox" value="2"/>Комедии<br/>Количество
-			<input name="U" type="checkbox" value="3"/>Драмы<br/> -->
-    <!-- <form action="/3.php" method="get">
-        <p>Цвет квадрата</p>
-		
-		<p>
-			<select name="color">
-				<option value="no">Не выбран</option>
-				<option value="r">Красный</option>
-				<option value="g">Зеленый</option>
-			<select>
-		</p>
-		<div class="rect"></div>
-		<p>
-			<button type="submit">
-				<  ?php
-					if(isset($_REQUEST['name']))
-						echo $_REQUEST['name'];
-					else
-						echo "Отправить";
-				?>
-			</button>
-		</p>
-	</form> -->
 </body>
-
-
-<!-- <input name="name" type="text" value="Тимати"/><br/>
-			Тогда используй пароль<br/>
-			<input name="password" type="password"/> Надежность <img src="images/add.gif"/><img src="images/add.gif"/><img src="images/add.gif"/><br/>
-			Сколько тебе лет?<input name="age" type="text"/><br/>
-			Где ты живешь?
-			<input name="location_type1" type="checkbox" value="1" checked="checked"/>
-			<input name="location_type2" type="checkbox" value="2"  checked="checked"/>
-			<input name="location_type3" type="checkbox" value="3"  checked="checked"/><br/>
-			<select>
-				<option>Якутск</option>
-				<optgroup label="Южнее">
-					<option>Москва</option>
-					<option>Санкт-Петербург</option>
-				<optgroup>
-			<select><br/>
-
-			Выбери какой предмет тебе нравится ?<br/>
-			<button>Web-программирование</button>
-			<button disabled="disabled">Математика</button>
-			<button disabled="disabled">Физика</button>
-			<button disabled="disabled">Астрономия</button><br/>
-			<button>Web-программирование</button>
-			Выбери свой любимый жанр кино (можно несколько)
-			<fieldset>
-				Ужасы<br/><br/>
-			</fieldset>
-			<input name="U" type="checkbox" value="1" checked="checked"/>Ужасы<br/>
-			<input name="U" type="checkbox" value="2"/>Комедии<br/>
-			<input name="U" type="checkbox" value="3"/>Драмы<br/>
-			<input name="U" type="checkbox" value="4"/>Приключения
-		</fieldset><br/>
-		<button type="submit">Отправить</button>
-		<button>Очистить</button> -->
 </html>
-
-<!-- <  ?php
-    header('Content-Type: text/html; charset: utf-8');
-    echo 
-    "<h1>Игра со страницами Википедии</h1>" . 
-    "<p></p>";
-    $a=readline("a=");
-    echo "your input is $a\n";
-?> -->

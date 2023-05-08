@@ -27,9 +27,12 @@ extension=php_sqlite.dll
 
 */
 
+//'games(id, players_qty, start_path, finish_path, player_now_id)'
+//'results(id, game_id, user_id, user_steps_pty, user_path_now)'
+
 $db = new SQLite3("db.sqlite3");
 $db->exec('CREATE TABLE games(id INTEGER PRIMARY KEY, players_qty INTEGER, start_path TEXT, finish_path TEXT, player_now_id INTEGER)');
-$db->exec('CREATE TABLE results(id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INTEGER, user_id INTEGER, user_result INTEGER, path_now TEXT)');
+$db->exec('CREATE TABLE results(id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INTEGER, user_id INTEGER, user_steps_qty INTEGER, user_path_now TEXT)');
 
 $db->close();
 
